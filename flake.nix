@@ -30,11 +30,19 @@
           gdb
           cmake
           ninja
+          shader-slang
           pkg-config
         ];
         buildInputs = with pkgs; [
           fmt
           gtest
+          glfw
+          glm
+          rapidyaml
+          stb
+          vulkan-headers
+          vulkan-loader
+          vulkan-validation-layers
           gbenchmark
           cli11
         ];
@@ -56,6 +64,8 @@
               ./CMakeLists.txt
               (fs.fileFilter (file: file.hasExt "cpp") ./src)
               (fs.fileFilter (file: file.hasExt "hpp") ./include)
+              (fs.fileFilter (file: file.hasExt "cmake") ./cmake)
+              (fs.fileFilter (file: file.hasExt "slang") ./shaders)
             ];
           in
           rec {
@@ -68,7 +78,9 @@
                 fileset = sourceFiles;
               };
               buildInputs = buildInputs;
-              nativeBuildInputs = nativeBuildInputs;
+              nativeBuildInputs = nativeBuildInputs ++ [ pkgs.makeWrapper ];
+              enableDebugging = true;
+              dontStrip = true;
               donotUnpack = true;
               configurePhase = ''
                 cmake -S . -B cmake-build -DCMAKE_BUILD_TYPE=${buildType} -DCMAKE_CXX_COMPILER=clang++
@@ -78,6 +90,10 @@
               '';
               installPhase = ''
                 cmake --install cmake-build --prefix $out
+              '';
+              postFixup = ''
+                wrapProgram $out/bin/${projectName} \
+                  --prefix VK_LAYER_PATH : "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d"
               '';
               meta = {
                 description = "Core C++ library";
