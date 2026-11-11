@@ -1,5 +1,6 @@
 struct VSInput {
   float3 inPosition;
+  float3 inNormal;
   float3 inColor;
   float2 inTexCoord;
 };
@@ -8,11 +9,23 @@ struct UniformBuffer {
   float4x4 model;
   float4x4 view;
   float4x4 proj;
+
+  float3 camera;
+  float shininess;
+  float3 light;
+  float intensity;
+  float3 color;
+  float ambient;
+  float3 spec;
+
+  float __pad;
 };
 ConstantBuffer<UniformBuffer> ubo;
 
 struct VSOutput {
   float4 pos : SV_Position;
+  float3 worldPos;
+  float3 normal;
   float3 color;
   float2 texCoord;
 };
@@ -20,7 +33,12 @@ struct VSOutput {
 [shader("vertex")]
 VSOutput vertMain(VSInput input) {
   VSOutput output;
+
+  float4 worldPos = mul(ubo.model, float4(input.inPosition, 1.0));
+  output.worldPos = worldPos.xyz;
+  float3 worldNormal = normalize(mul(ubo.model, float4(input.inNormal, 0.0)).xyz);
   output.pos = mul(ubo.proj, mul(ubo.view, mul(ubo.model, float4(input.inPosition, 1.0))));
+  output.normal = worldNormal;
   output.color = input.inColor;
   output.texCoord = input.inTexCoord;
   return output;
@@ -29,4 +47,25 @@ VSOutput vertMain(VSInput input) {
 Sampler2D texture;
 
 [shader("fragment")]
-float4 fragMain(VSOutput vertIn) : SV_TARGET { return texture.Sample(vertIn.texCoord); }
+float4 fragMain(VSOutput vertIn) : SV_TARGET {
+  float3 albedo = texture.Sample(vertIn.texCoord).rgb * vertIn.color;
+
+  float3 normal = normalize(vertIn.normal);
+  float3 viewDir = normalize(ubo.camera - vertIn.worldPos);
+  float3 lightDir = normalize(ubo.light - vertIn.worldPos);
+
+  float3 ambient = ubo.ambient * ubo.color;
+
+  // Lambertian diffuse
+  float diffuseStrength = max(dot(normal, lightDir), 0.0);
+  float3 diffuse = diffuseStrength * ubo.color;
+
+  // Blinn-Phong specular
+  float3 halfwayDir = normalize(lightDir + viewDir);
+  float specularStrength = pow(max(dot(normal, halfwayDir), 0.0), ubo.shininess);
+  float3 specular = ubo.spec * specularStrength * ubo.color;
+
+  float3 litColor = albedo * (ambient + diffuse) + specular;
+
+  return float4(litColor, 1.0);
+}

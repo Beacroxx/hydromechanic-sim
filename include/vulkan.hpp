@@ -137,6 +137,7 @@ private:
 
 struct Vertex {
   glm::vec3 pos;
+  glm::vec3 normal;
   glm::vec3 color;
   glm::vec2 texCoord;
 
@@ -144,10 +145,11 @@ struct Vertex {
     return {0, sizeof(Vertex), vk::VertexInputRate::eVertex};
   }
 
-  static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions() {
+  static std::array<vk::VertexInputAttributeDescription, 4> getAttributeDescriptions() {
     return {vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos)),
-            vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
-            vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))};
+            vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal)),
+            vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
+            vk::VertexInputAttributeDescription(3, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))};
   }
 
   bool operator==(const Vertex &other) const {
@@ -168,4 +170,14 @@ struct UniformBufferObject {
   glm::mat4 model;
   glm::mat4 view;
   glm::mat4 proj;
+
+  glm::vec3 camera;
+  float shininess;
+  glm::vec3 light;
+  float intensity;
+  glm::vec3 color;
+  float ambient;
+  glm::vec3 specular;
+
+  float __pad;
 };
