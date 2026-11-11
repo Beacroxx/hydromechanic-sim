@@ -2,8 +2,6 @@
 
 #include "window.hpp"
 
-#include <stb/stb_image.h>
-
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 

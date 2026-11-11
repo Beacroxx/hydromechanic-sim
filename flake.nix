@@ -66,6 +66,19 @@
               (fs.fileFilter (file: file.hasExt "hpp") ./include)
               (fs.fileFilter (file: file.hasExt "cmake") ./cmake)
               (fs.fileFilter (file: file.hasExt "slang") ./shaders)
+              (fs.fileFilter (
+                file:
+                file.hasExt "png"
+                || file.hasExt "jpg"
+                || file.hasExt "jpeg"
+                || file.hasExt "bmp"
+                || file.hasExt "tga"
+                || file.hasExt "gif"
+                || file.hasExt "psd"
+                || file.hasExt "hdr"
+                || file.hasExt "pic"
+                || file.hasExt "pnm"
+              ) ./textures)
             ];
           in
           rec {

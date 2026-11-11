@@ -1,6 +1,7 @@
 #include "vulkan.hpp"
 
 #include "shader_spirv.hpp"
+#include "textures.hpp"
 #include "window.hpp"
 
 #include <chrono>
@@ -148,7 +149,9 @@ vk::raii::ImageView Vulkan::createImageView(vk::Image const &image, vk::Format f
 }
 
 void Vulkan::createImageViews() {
-  assert(swapChainImageViews.empty());
+  if (!swapChainImageViews.empty()) {
+    throw ERROR_LOC("swap chain image views must be empty before creation");
+  }
 
   swapChainImageViews.reserve(swapChainImages.size());
   for (auto &image : swapChainImages) {
@@ -169,16 +172,17 @@ vk::Extent2D chooseSwapExtent(vk::SurfaceCapabilitiesKHR const &capabilities, Wi
 }
 
 static vk::PresentModeKHR chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const &availablePresentModes) {
-  assert(std::ranges::any_of(availablePresentModes,
-                             [](auto presentMode) { return presentMode == vk::PresentModeKHR::eFifo; }));
-  return std::ranges::any_of(availablePresentModes,
-                             [](const vk::PresentModeKHR value) { return vk::PresentModeKHR::eMailbox == value; })
-             ? vk::PresentModeKHR::eMailbox
-             : vk::PresentModeKHR::eFifo;
+  if (!std::ranges::any_of(availablePresentModes,
+                           [](auto presentMode) { return presentMode == vk::PresentModeKHR::eFifo; })) {
+    throw ERROR_LOC("FIFO present mode is not available");
+  }
+  return vk::PresentModeKHR::eFifo;
 }
 
 static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats) {
-  assert(!availableFormats.empty());
+  if (availableFormats.empty()) {
+    throw ERROR_LOC("no swap chain surface formats are available");
+  }
   const auto formatIt = std::ranges::find_if(availableFormats, [](const auto &format) {
     return format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
   });
@@ -622,13 +626,18 @@ void copyBufferToImage(vk::raii::CommandBuffer &commandBuffer, const vk::raii::B
 }
 
 void Vulkan::createTextureImage() {
-  int texWidth, texHeight, texChannels;
-  stbi_uc *pixels = stbi_load("textures/image.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-  vk::DeviceSize imageSize = texWidth * texHeight * 4;
+  if (textures.empty()) {
+    throw ERROR_LOC("no embedded textures were loaded");
+  }
+
+  const TextureImage &texture = textures.front();
+  const int texWidth = texture.width;
+  const int texHeight = texture.height;
+  const vk::DeviceSize imageSize = texture.pixels.size();
   mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-  if (!pixels) {
-    throw ERROR_LOC("failed to load texture image!");
+  if (texture.channels != 4) {
+    throw ERROR_LOC("Vulkan texture upload requires four channels, got {}", texture.channels);
   }
 
   auto [stagingBuffer, stagingBufferMemory] =
@@ -636,10 +645,8 @@ void Vulkan::createTextureImage() {
                    vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
 
   void *data = stagingBufferMemory.mapMemory(0, imageSize);
-  memcpy(data, pixels, imageSize);
+  memcpy(data, texture.pixels.data(), imageSize);
   stagingBufferMemory.unmapMemory();
-
-  stbi_image_free(pixels);
 
   std::tie(textureImage, textureImageMemory) = createImage(
       texWidth, texHeight, mipLevels, vk::SampleCountFlagBits::e1, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal,
@@ -802,7 +809,9 @@ void Vulkan::recordCommandBuffer(uint32_t imageIndex) {
 }
 
 void Vulkan::createSyncObjects() {
-  assert(presentCompleteSemaphores.empty() && renderFinishedSemaphores.empty() && inFlightFences.empty());
+  if (!presentCompleteSemaphores.empty() || !renderFinishedSemaphores.empty() || !inFlightFences.empty()) {
+    throw ERROR_LOC("synchronization objects must be empty before creation");
+  }
 
   for (size_t i = 0; i < swapChainImages.size(); i++) {
     renderFinishedSemaphores.emplace_back(device, vk::SemaphoreCreateInfo());
@@ -859,7 +868,9 @@ void Vulkan::drawFrame() {
   // On other success codes than eSuccess and eSuboptimalKHR we just throw an exception.
   // On any error code, aquireNextImage already threw an exception.
   if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
-    assert(result == vk::Result::eTimeout || result == vk::Result::eNotReady);
+    if (result != vk::Result::eTimeout && result != vk::Result::eNotReady) {
+      throw ERROR_LOC("unexpected result while acquiring swap chain image");
+    }
     throw ERROR_LOC("failed to acquire swap chain image!");
   }
   updateUniformBuffer(frameIndex);
@@ -893,7 +904,9 @@ void Vulkan::drawFrame() {
     recreateSwapChain();
   } else {
     // There are no other success codes than eSuccess; on any error code, presentKHR already threw an exception.
-    assert(result == vk::Result::eSuccess);
+    if (result != vk::Result::eSuccess) {
+      throw ERROR_LOC("failed to present swap chain image!");
+    }
   }
   frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -1068,6 +1081,7 @@ void Vulkan::createColorResources() {
 Vulkan::Vulkan(Window &w) : window(w) {
   LOG_LOC(Log::Level::DEBUG, "Initializing Vulkan.");
 
+  loadTextures();
   glfwSetFramebufferSizeCallback(window, fbResizeCallback);
   createInstance();
   setupDebugMessenger();
