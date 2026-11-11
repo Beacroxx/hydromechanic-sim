@@ -180,4 +180,6 @@ struct UniformBufferObject {
   glm::vec3 specular;
 
   float __pad;
+
+  glm::mat4 normal;
 };

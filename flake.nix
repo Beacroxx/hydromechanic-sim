@@ -86,7 +86,7 @@
                 cmake -S . -B cmake-build -DCMAKE_BUILD_TYPE=${buildType} -DCMAKE_CXX_COMPILER=clang++
               '';
               buildPhase = ''
-                cmake --build cmake-build --verbose
+                cmake --build cmake-build --verbose -j "$NIX_BUILD_CORES"
               '';
               installPhase = ''
                 cmake --install cmake-build --prefix $out

@@ -19,6 +19,8 @@ struct UniformBuffer {
   float3 spec;
 
   float __pad;
+
+  float4x4 normal;
 };
 ConstantBuffer<UniformBuffer> ubo;
 
@@ -34,11 +36,9 @@ struct VSOutput {
 VSOutput vertMain(VSInput input) {
   VSOutput output;
 
-  float4 worldPos = mul(ubo.model, float4(input.inPosition, 1.0));
-  output.worldPos = worldPos.xyz;
-  float3 worldNormal = normalize(mul(ubo.model, float4(input.inNormal, 0.0)).xyz);
+  output.worldPos = mul(ubo.model, float4(input.inPosition, 1.0)).xyz;
   output.pos = mul(ubo.proj, mul(ubo.view, mul(ubo.model, float4(input.inPosition, 1.0))));
-  output.normal = worldNormal;
+  output.normal = mul(ubo.normal, float4(input.inNormal, 0.0)).xyz;
   output.color = input.inColor;
   output.texCoord = input.inTexCoord;
   return output;
